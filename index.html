@@ -22,7 +22,7 @@
   <!-- Firebase App & Firestore Modular Scripts -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, doc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAIe2DwSxkwS-iFUvEaE6uYogOdkB-qMSU",
@@ -40,7 +40,7 @@
 
     // 전역 변수로 React 스크립트에 공유
     window.db = db;
-    window.dbFuncs = { collection, onSnapshot, doc, setDoc, updateDoc };
+    window.dbFuncs = { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc };
   </script>
 
   <!-- React App Code -->
@@ -57,6 +57,11 @@
       const [targetMinute, setTargetMinute] = useState('00');
       const [checkWeekend, setCheckWeekend] = useState(false);
       const [selectedMemberForCalendar, setSelectedMemberForCalendar] = useState(null);
+      
+      // 관리자 설정 모달 상태
+      const [adminModalMember, setAdminModalMember] = useState(null);
+      const [adminPassword, setAdminPassword] = useState('');
+      const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
 
       const getAdjustedToday = () => {
         const now = new Date();
@@ -85,7 +90,6 @@
                 ...doc.data()
               }));
               
-              // 등록된 순서(id 생성 시간)대로 정렬
               dataList.sort((a, b) => Number(a.id) - Number(b.id));
               
               setMembers(dataList);
@@ -140,7 +144,7 @@
         if (!nameInput.trim() || !window.db) return;
 
         const { doc, setDoc } = window.dbFuncs;
-        const newId = Date.now().toString(); // id를 생성 시간으로 지정하여 정렬 기준으로 사용
+        const newId = Date.now().toString();
 
         const newMember = {
           name: nameInput.trim(),
@@ -159,6 +163,22 @@
           setAvatarType('default');
         } catch (err) {
           alert("작가 등록에 실패했습니다. Firebase 규칙을 확인해주세요!");
+        }
+      };
+
+      // 프로필 삭제 함수
+      const handleDeleteMember = async (id) => {
+        if (!window.db) return;
+        if (!confirm("정말 이 작가 프로필을 삭제하시겠습니까?")) return;
+
+        const { doc, deleteDoc } = window.dbFuncs;
+        try {
+          await deleteDoc(doc(window.db, "members", id));
+          setAdminModalMember(null);
+          setIsAdminAuthenticated(false);
+          setAdminPassword('');
+        } catch (err) {
+          alert("삭제에 실패했습니다.");
         }
       };
 
@@ -269,10 +289,9 @@
             <h1 class="text-3xl font-black text-amber-950 flex items-center justify-center gap-2">
               <span>⚡</span> 태풍이의 기상 인증 시스템 <span>⏰</span>
             </h1>
-            <p class="text-amber-900 mt-2 font-bold">연말까지 다 함께 일찍 일어나기 챌린지!</p>
           </div>
 
-          {/* 작가 카드 목록 (위로 이동) */}
+          {/* 작가 카드 목록 */}
           <div class="grid md:grid-cols-2 gap-4">
             {members.length === 0 ? (
               <div class="col-span-2 bg-white p-8 rounded-2xl text-center font-bold text-gray-500 border-2 border-dashed border-gray-300">
@@ -287,6 +306,7 @@
                 return (
                   <div key={member.id} class="bg-white p-5 rounded-2xl shadow-md border-2 border-amber-200 relative flex flex-col justify-between">
                     <div>
+                      {/* 카드 상단 헤더 (프로필, 이름, 기록달력, 설정 버튼) */}
                       <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center gap-3">
                           {member.isCustomImage ? (
@@ -302,18 +322,31 @@
                           </div>
                         </div>
 
-                        <button
-                          onClick={() => setSelectedMemberForCalendar(member)}
-                          class="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-xs rounded-lg border border-amber-300"
-                        >
-                          📅 기록 달력
-                        </button>
+                        <div class="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setSelectedMemberForCalendar(member)}
+                            class="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-xs rounded-lg border border-amber-300"
+                          >
+                            📅 달력
+                          </button>
+                          <button
+                            onClick={() => {
+                              setAdminModalMember(member);
+                              setIsAdminAuthenticated(false);
+                              setAdminPassword('');
+                            }}
+                            class="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg border border-gray-300 text-xs font-bold"
+                            title="설정"
+                          >
+                            ⚙️
+                          </button>
+                        </div>
                       </div>
 
                       <div class="mb-4">
                         {isCheckedToday ? (
                           <div class={`p-3 rounded-xl text-center font-bold text-sm ${todayRecord.status === 'success' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'}`}>
-                            {todayRecord.status === 'success' ? '🎉 성공!' : '😅 실패!'} ({todayRecord.time} 인증)
+                            {todayRecord.status === 'success' ? '🎉 성공!' : '😅 지각!'} ({todayRecord.time} 인증)
                           </div>
                         ) : (
                           <button
@@ -366,7 +399,7 @@
             )}
           </div>
 
-          {/* 새 작가 등록 폼 (아래로 이동) */}
+          {/* 새 작가 등록 폼 */}
           <div class="bg-white p-6 rounded-2xl shadow-md border-2 border-amber-200 mt-8">
             <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
               <span>✍️</span> 새 작가 등록하기
@@ -461,7 +494,7 @@
                     return (
                       <div key={day.dateStr} class={`p-2 rounded-xl flex flex-col items-center justify-center ${statusBg}`}>
                         <span class="text-xs font-bold">{day.month}/{day.dayNum}</span>
-                        <span class="text-[10px]">{rec ? rec.time : (statusBg.includes('emerald') ? '성공' : statusBg.includes('rose') ? '실패' : '-')}</span>
+                        <span class="text-[10px]">{rec ? rec.time : (statusBg.includes('emerald') ? '성공' : statusBg.includes('rose') ? '지각' : '-')}</span>
                       </div>
                     );
                   })}
@@ -476,11 +509,61 @@
               </div>
             </div>
           )}
+
+          {/* 관리자 설정 모달 (프로필 삭제용 비밀번호 입력) */}
+          {adminModalMember && (
+            <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+              <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border-4 border-amber-400">
+                <div class="flex justify-between items-center mb-4">
+                  <h3 class="text-lg font-black text-gray-800">
+                    ⚙️ [{adminModalMember.name}] 작가 설정
+                  </h3>
+                  <button onClick={() => setAdminModalMember(null)} class="text-gray-400 font-bold hover:text-gray-600">✕</button>
+                </div>
+
+                {!isAdminAuthenticated ? (
+                  <div class="space-y-4">
+                    <p class="text-xs font-bold text-gray-600">프로필을 삭제하려면 관리자 비밀번호를 입력해주세요.</p>
+                    <input
+                      type="password"
+                      placeholder="비밀번호 입력"
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      class="w-full p-3 border-2 border-amber-200 rounded-xl focus:outline-none focus:border-amber-400 font-bold text-center tracking-widest text-lg"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => {
+                        if (adminPassword === '0130') {
+                          setIsAdminAuthenticated(true);
+                        } else {
+                          alert('비밀번호가 틀렸습니다!');
+                          setAdminPassword('');
+                        }
+                      }}
+                      class="w-full py-2.5 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold rounded-xl shadow"
+                    >
+                      확인
+                    </button>
+                  </div>
+                ) : (
+                  <div class="space-y-4 text-center">
+                    <p class="text-sm font-bold text-rose-600">비밀번호가 확인되었습니다.</p>
+                    <button
+                      onClick={() => handleDeleteMember(adminModalMember.id)}
+                      class="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl shadow border-b-4 border-rose-700 transition"
+                    >
+                      ❌ 이 프로필 영구 삭제하기
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       );
     }
 
-    // 초기 마운트
     const interval = setInterval(() => {
       const rootEl = document.getElementById('root');
       if (rootEl) {
