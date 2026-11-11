@@ -11,7 +11,6 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
-  <!-- Firebase SDKs (Module script compatibility wrapper) -->
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap');
     body { font-family: 'Gowun Dodum', sans-serif; }
@@ -59,7 +58,6 @@
       const [checkWeekend, setCheckWeekend] = useState(false);
       const [selectedMemberForCalendar, setSelectedMemberForCalendar] = useState(null);
 
-      // 오늘 날짜 계산 (오전 4시 30분 리셋 로직 적용)
       const getAdjustedToday = () => {
         const now = new Date();
         const adjusted = new Date(now);
@@ -74,7 +72,6 @@
 
       const todayStr = getAdjustedToday();
 
-      // Firebase Firestore 실시간 연동 (onSnapshot)
       useEffect(() => {
         const checkDbTimer = setInterval(() => {
           if (window.db && window.dbFuncs) {
@@ -87,6 +84,10 @@
                 id: doc.id,
                 ...doc.data()
               }));
+              
+              // 등록된 순서(id 생성 시간)대로 정렬
+              dataList.sort((a, b) => Number(a.id) - Number(b.id));
+              
               setMembers(dataList);
               setLoading(false);
             }, (err) => {
@@ -101,7 +102,6 @@
         return () => clearInterval(checkDbTimer);
       }, []);
 
-      // 사진 업로드 리사이징 (최대 150px)
       const handleImageUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -135,13 +135,12 @@
         reader.readAsDataURL(file);
       };
 
-      // 새 작가 Firestore 저장
       const handleAddMember = async (e) => {
         e.preventDefault();
         if (!nameInput.trim() || !window.db) return;
 
         const { doc, setDoc } = window.dbFuncs;
-        const newId = Date.now().toString();
+        const newId = Date.now().toString(); // id를 생성 시간으로 지정하여 정렬 기준으로 사용
 
         const newMember = {
           name: nameInput.trim(),
@@ -163,7 +162,6 @@
         }
       };
 
-      // 기상 인증 Firestore 업데이트
       const handleCheckIn = async (id, currentRecords) => {
         if (!window.db) return;
         const { doc, updateDoc } = window.dbFuncs;
@@ -199,7 +197,6 @@
         }
       };
 
-      // 11월 11일 기준 7일 날짜 목록
       const get7DaysList = () => {
         const days = [];
         const startDate = new Date(2026, 10, 11);
@@ -232,7 +229,6 @@
         return days;
       };
 
-      // 달력 날짜 목록 (11/11 ~ 12/11)
       const getCalendarDays = () => {
         const list = [];
         const start = new Date(2026, 10, 11);
@@ -276,72 +272,11 @@
             <p class="text-amber-900 mt-2 font-bold">연말까지 다 함께 일찍 일어나기 챌린지!</p>
           </div>
 
-          {/* 새 작가 등록 폼 */}
-          <div class="bg-white p-6 rounded-2xl shadow-md border-2 border-amber-200">
-            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <span>✍️</span> 새 작가 등록하기
-            </h2>
-            <form onSubmit={handleAddMember} class="space-y-4">
-              <div>
-                <input
-                  type="text"
-                  placeholder="작가 이름 입력"
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  class="w-full p-3 border-2 border-amber-200 rounded-xl focus:outline-none focus:border-amber-400 font-bold"
-                  required
-                />
-              </div>
-
-              <div class="flex items-center gap-4">
-                <span class="text-sm font-bold text-gray-600">프로필 선택:</span>
-                <button
-                  type="button"
-                  onClick={() => setAvatarType('default')}
-                  class={`px-3 py-1.5 rounded-lg text-sm font-bold border-2 ${avatarType === 'default' ? 'bg-amber-400 border-amber-500 text-amber-950' : 'bg-gray-100 border-gray-300'}`}
-                >
-                  기본 프로필
-                </button>
-                <label class={`px-3 py-1.5 rounded-lg text-sm font-bold border-2 cursor-pointer ${avatarType === 'upload' ? 'bg-amber-400 border-amber-500 text-amber-950' : 'bg-gray-100 border-gray-300'}`}>
-                  내 사진 업로드
-                  <input type="file" accept="image/*" onChange={(e) => { setAvatarType('upload'); handleImageUpload(e); }} class="hidden" />
-                </label>
-              </div>
-
-              <div class="flex flex-wrap items-center gap-4 bg-amber-50 p-4 rounded-xl border border-amber-200">
-                <span class="font-bold text-gray-700">목표 기상 시간 (오전):</span>
-                <select value={targetHour} onChange={(e) => setTargetHour(e.target.value)} class="p-2 border-2 border-amber-300 rounded-lg font-bold">
-                  {Array.from({ length: 12 }, (_, i) => String(i).padStart(2, '0')).map(h => (
-                    <option key={h} value={h}>{h}시</option>
-                  ))}
-                </select>
-                <select value={targetMinute} onChange={(e) => setTargetMinute(e.target.value)} class="p-2 border-2 border-amber-300 rounded-lg font-bold">
-                  {['00', '10', '20', '30', '40', '50'].map(m => (
-                    <option key={m} value={m}>{m}분</option>
-                  ))}
-                </select>
-                <label class="flex items-center gap-2 cursor-pointer font-bold text-sm text-gray-600 ml-auto">
-                  <input
-                    type="checkbox"
-                    checked={checkWeekend}
-                    onChange={(e) => setCheckWeekend(e.target.checked)}
-                    class="w-4 h-4 accent-amber-500 rounded"
-                  />
-                  주말에도 기상 인증하기
-                </label>
-              </div>
-
-              <button type="submit" class="w-full py-3 bg-amber-400 hover:bg-amber-500 text-amber-950 font-black text-lg rounded-xl shadow border-b-4 border-amber-600 transition">
-                참여 작가 등록하기
-              </button>
-            </form>
-          </div>
-
-          {/* 작가 카드 목록 */}
+          {/* 작가 카드 목록 (위로 이동) */}
           <div class="grid md:grid-cols-2 gap-4">
             {members.length === 0 ? (
               <div class="col-span-2 bg-white p-8 rounded-2xl text-center font-bold text-gray-500 border-2 border-dashed border-gray-300">
-                아직 등록된 작가가 없습니다! 첫 번째 작가를 등록해보세요 ⚡
+                아직 등록된 작가가 없습니다! 아래에서 첫 번째 작가를 등록해보세요 ⚡
               </div>
             ) : (
               members.map(member => {
@@ -429,6 +364,67 @@
                 );
               })
             )}
+          </div>
+
+          {/* 새 작가 등록 폼 (아래로 이동) */}
+          <div class="bg-white p-6 rounded-2xl shadow-md border-2 border-amber-200 mt-8">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <span>✍️</span> 새 작가 등록하기
+            </h2>
+            <form onSubmit={handleAddMember} class="space-y-4">
+              <div>
+                <input
+                  type="text"
+                  placeholder="작가 이름 입력"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  class="w-full p-3 border-2 border-amber-200 rounded-xl focus:outline-none focus:border-amber-400 font-bold"
+                  required
+                />
+              </div>
+
+              <div class="flex items-center gap-4">
+                <span class="text-sm font-bold text-gray-600">프로필 선택:</span>
+                <button
+                  type="button"
+                  onClick={() => setAvatarType('default')}
+                  class={`px-3 py-1.5 rounded-lg text-sm font-bold border-2 ${avatarType === 'default' ? 'bg-amber-400 border-amber-500 text-amber-950' : 'bg-gray-100 border-gray-300'}`}
+                >
+                  기본 프로필
+                </button>
+                <label class={`px-3 py-1.5 rounded-lg text-sm font-bold border-2 cursor-pointer ${avatarType === 'upload' ? 'bg-amber-400 border-amber-500 text-amber-950' : 'bg-gray-100 border-gray-300'}`}>
+                  내 사진 업로드
+                  <input type="file" accept="image/*" onChange={(e) => { setAvatarType('upload'); handleImageUpload(e); }} class="hidden" />
+                </label>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-4 bg-amber-50 p-4 rounded-xl border border-amber-200">
+                <span class="font-bold text-gray-700">목표 기상 시간 (오전):</span>
+                <select value={targetHour} onChange={(e) => setTargetHour(e.target.value)} class="p-2 border-2 border-amber-300 rounded-lg font-bold">
+                  {Array.from({ length: 12 }, (_, i) => String(i).padStart(2, '0')).map(h => (
+                    <option key={h} value={h}>{h}시</option>
+                  ))}
+                </select>
+                <select value={targetMinute} onChange={(e) => setTargetMinute(e.target.value)} class="p-2 border-2 border-amber-300 rounded-lg font-bold">
+                  {['00', '10', '20', '30', '40', '50'].map(m => (
+                    <option key={m} value={m}>{m}분</option>
+                  ))}
+                </select>
+                <label class="flex items-center gap-2 cursor-pointer font-bold text-sm text-gray-600 ml-auto">
+                  <input
+                    type="checkbox"
+                    checked={checkWeekend}
+                    onChange={(e) => setCheckWeekend(e.target.checked)}
+                    class="w-4 h-4 accent-amber-500 rounded"
+                  />
+                  주말에도 기상 인증하기
+                </label>
+              </div>
+
+              <button type="submit" class="w-full py-3 bg-amber-400 hover:bg-amber-500 text-amber-950 font-black text-lg rounded-xl shadow border-b-4 border-amber-600 transition">
+                참여 작가 등록하기
+              </button>
+            </form>
           </div>
 
           {/* 달력 모달 */}
